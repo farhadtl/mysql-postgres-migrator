@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ابزار Migration از MySQL به PostgreSQL
 
 ابزاری مستقل و Dockerized برای انتقال کامل یک دیتابیس MySQL به PostgreSQL،
@@ -29,7 +28,7 @@ Auto Increment / Sequence ها.
 
 ### ۱. کلون یا کپی پروژه
 
-فایل‌های این پروژه را در یک پوشه (مثلاً `migration/`) قرار دهید.
+فایل‌های این پروژه را در یک پوشه (مثلاً `mysql-postgres-migrator/`) قرار دهید.
 
 ### ۲. تنظیم فایل `.env`
 
