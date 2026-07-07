@@ -8,8 +8,13 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - migration_network
+    depends_on:
+      mysql_old:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: "no"
 
   mysql_old:
@@ -30,8 +35,10 @@ services:
       - --innodb_buffer_pool_size=1G
       - --wait_timeout=28800
       - --interactive_timeout=28800
+    networks:
+      - migration_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot --silent"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -48,11 +55,17 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - migration_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres_user -d new_postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+
+networks:
+  migration_network:
 
 volumes:
   mysql_old_data:

@@ -22,7 +22,9 @@ Auto Increment / Sequence ها.
 - دسترسی شبکه‌ای به هر دو دیتابیس MySQL (مبدأ) و PostgreSQL (مقصد)
 - کاربر MySQL باید دسترسی `SELECT` روی دیتابیس مبدأ و `information_schema` داشته باشد
 - کاربر PostgreSQL باید دسترسی `CREATE`، `INSERT`، `ALTER` روی دیتابیس مقصد داشته باشد
-- دیتابیس مقصد PostgreSQL باید از قبل ساخته شده باشد (خود ابزار دیتابیس نمی‌سازد، فقط جداول داخل آن را می‌سازد)
+- دیتابیس مقصد PostgreSQL باید قابل دسترس باشد. در صورت استفاده از
+  `docker-compose.yml` ارائه‌شده، دیتابیس مقصد به صورت خودکار هنگام
+  اجرای سرویس PostgreSQL ساخته می‌شود.
 
 ## نصب و راه‌اندازی
 
@@ -41,44 +43,60 @@ cp .env.example .env
 سپس مقادیر را با اطلاعات واقعی خود پر کنید:
 
 ```env
-MYSQL_HOST=192.168.1.10
+MYSQL_HOST=mysql_old
 MYSQL_PORT=3306
-MYSQL_DATABASE=my_source_db
-MYSQL_USER=root
-MYSQL_PASSWORD=my_password
+MYSQL_DATABASE=mysql_db
+MYSQL_USER=mysql_user
+MYSQL_PASSWORD=mysql_pass
 
-POSTGRES_HOST=192.168.1.20
+POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
-POSTGRES_DATABASE=my_target_db
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=my_password
+POSTGRES_DATABASE=new_postgres
+POSTGRES_USER=postgres_user
+POSTGRES_PASSWORD=postgres_pass
 
 BATCH_SIZE=1000
 ```
 
-> **نکته درباره شبکه:** پیش‌فرض این پروژه فرض می‌کند MySQL و PostgreSQL
-> مستقیماً روی هاست (نه داخل Docker) در حال اجرا هستند. برای این حالت،
-> در `.env` مقدار `MYSQL_HOST` و `POSTGRES_HOST` را برابر
-> `host.docker.internal` قرار دهید (نه `localhost`)، چون از داخل
-> container، `localhost` به خود container اشاره می‌کند نه به هاست. این
-> روش روی Windows، Mac و Linux (با Docker Engine 20.10 به بعد) کار
-> می‌کند و از قبل در `docker-compose.yml` (بخش `extra_hosts`) تنظیم شده
-> است.
+> **نکته درباره شبکه:** این پروژه به صورت پیش‌فرض فرض می‌کند MySQL و PostgreSQL
+> در محیط Docker اجرا می‌شوند و سرویس migration باید از طریق نام سرویس یا
+> کانتینر به آن‌ها متصل شود.
 >
-> اگر MySQL و PostgreSQL شما در container های دیگری در همان محیط Docker
-> هستند، به‌جای `host.docker.internal` از نام سرویس آن‌ها استفاده کنید
-> و آن‌ها را در یک شبکه Docker مشترک با این سرویس قرار دهید (و در این
-> صورت بخش `extra_hosts` در `docker-compose.yml` دیگر لازم نیست).
+> در فایل `.env` مقدارهای `MYSQL_HOST` و `POSTGRES_HOST` را برابر نام
+> سرویس‌های Docker خود قرار دهید:
+>
+> ```env
+> MYSQL_HOST=mysql_old
+> POSTGRES_HOST=postgres
+> ```
+>
+> از مقدار `localhost` استفاده نکنید، زیرا داخل container، مقدار
+> `localhost` به همان container ابزار migration اشاره می‌کند، نه به
+> کانتینرهای MySQL و PostgreSQL.
+>
+> تمام سرویس‌ها باید در یک Docker network مشترک قرار داشته باشند تا
+> container مربوط به migration بتواند با استفاده از نام سرویس‌ها به
+> دیتابیس‌ها متصل شود.
+>
+> اگر MySQL و PostgreSQL در یک `docker-compose.yml` مشترک تعریف شده باشند،
+> Docker Compose به صورت خودکار آن‌ها را در یک network قرار می‌دهد و نیازی
+> به تنظیمات اضافی نیست.
 
 ### ۳. اجرا
+
+ابتدا از  دیتابیس mysql خود یک فول بکاپ بگیرید و نام آن را دقیقا به "mysql_full_backup.sql" تغییر دهید و در پوشه sql جایگزاری نمایید.
 
 ```bash
 docker compose up --build
 ```
-
 همین دستور، ابزار را build و اجرا می‌کند. با اتمام کار، container متوقف
 می‌شود و گزارش نهایی هم در کنسول و هم در `logs/migration.log` نمایش
 داده می‌شود.
+
+بعد از اجرای دستور، در اولین اجرا MySQL فایل
+`sql/mysql_full_backup.sql` را داخل volume مربوط به خود import می‌کند.
+بسته به حجم فایل SQL، آماده شدن دیتابیس ممکن است زمان‌بر باشد.
+پس از آماده شدن سرویس‌ها، migration به صورت خودکار شروع می‌شود.
 
 ## تنظیمات پیشرفته (`.env`)
 
@@ -117,6 +135,9 @@ docker compose up
 ```bash
 rm logs/migration_state.json
 ```
+
+> توجه: برای استفاده از قابلیت Resume، فایل‌های داخل پوشه `logs` و
+> volumeهای دیتابیس را حذف نکنید.
 
 و در صورت نیاز `DROP_EXISTING_TABLES=true` را در `.env` تنظیم کنید تا
 جداول قبلی هم در PostgreSQL بازسازی شوند.
@@ -194,8 +215,8 @@ migration/
 │   ├── logger.py                  # راه‌اندازی متمرکز لاگینگ
 │   └── utils.py                   # توابع کمکی و مدیریت state
 └── sql/
-    └── mysql_full_backup.sql      # دقیقا با همین نام جایگزاری شود
-    
+    └── mysql_full_backup.sql   # فایل بکاپ ورودی (توسط کاربر قرار داده می‌شود)
+
 └── logs/                     # فایل‌های لاگ و state (mount شده از هاست)
     ├── migration.log
     ├── errors.log
@@ -241,7 +262,7 @@ Errors   : 0
 برای تست، می‌توانید داخل container یک shell باز کنید:
 
 ```bash
-docker compose run --rm migration bash
+docker compose run --rm migration sh
 ```
 
 **Migration کند است:**
