@@ -1,0 +1,59 @@
+services:
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mysql_to_postgres_migration
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+
+  mysql_old:
+    image: mysql:8.0
+    container_name: mysql_old
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mysql_db
+      MYSQL_USER: mysql_user
+      MYSQL_PASSWORD: mysql_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_old_data:/var/lib/mysql
+      - ./sql/mysql_full_backup.sql:/docker-entrypoint-initdb.d/init.sql
+    command:
+      - --max_allowed_packet=1G
+      - --innodb_buffer_pool_size=1G
+      - --wait_timeout=28800
+      - --interactive_timeout=28800
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: new_postgres
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_pass
+      POSTGRES_DB: new_postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres_user -d new_postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_old_data:
+  postgres_data:
