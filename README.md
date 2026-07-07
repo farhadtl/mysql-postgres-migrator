@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ابزار Migration از MySQL به PostgreSQL
 
 ابزاری مستقل و Dockerized برای انتقال کامل یک دیتابیس MySQL به PostgreSQL،
