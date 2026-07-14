@@ -190,6 +190,14 @@ class SchemaConverter:
 
         if default is None:
             return None
+        
+        # MySQL zero date is invalid in PostgreSQL
+        if str(default).strip("'") in (
+            "0000-00-00",
+            "0000-00-00 00:00:00",
+            "0000-00-00 00:00:00.000000",
+        ):
+            return None
 
         default_upper = str(default).strip().upper()
 
@@ -340,33 +348,42 @@ class SchemaConverter:
 
     def coerce_row_values(
         self, rows: List[Dict[str, Any]], column_type_map: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
-        """
-        مقادیر خام خوانده‌شده از MySQL را طوری تبدیل می‌کند که با نوع ستون
-        مقصد در PostgreSQL سازگار باشند. مهم‌ترین مورد boolean است: مقدار
-        خام MySQL برای tinyint(1)/bit(1) عدد صحیح (0/1) یا bytes است؛
-        psycopg2 این را مستقیماً به boolean کست نمی‌کند.
-        """
+        ) -> List[Dict[str, Any]]:
+
         boolean_columns = [
-            col for col, pg_type in column_type_map.items() if pg_type == "boolean"
+            col for col, pg_type in column_type_map.items()
+            if pg_type == "boolean"
         ]
 
-        if not boolean_columns:
-            return rows
+        zero_dates = {
+            "0000-00-00",
+            "0000-00-00 00:00:00",
+            "0000-00-00 00:00:00.000000",
+        }
 
         for row in rows:
-            for col in boolean_columns:
-                if col not in row:
+
+            for col, value in row.items():
+
+                # MySQL zero date -> PostgreSQL NULL
+                if isinstance(value, str) and value in zero_dates:
+                    row[col] = "1970-01-01 00:00:00"
                     continue
-                value = row[col]
-                if value is None:
-                    continue
-                if isinstance(value, bool):
-                    continue
-                if isinstance(value, (bytes, bytearray)):
-                    row[col] = value != b"\x00"
-                else:
-                    row[col] = bool(int(value))
+
+                # MySQL boolean conversion
+                if col in boolean_columns:
+
+                    if value is None:
+                        continue
+
+                    if isinstance(value, bool):
+                        continue
+
+                    if isinstance(value, (bytes, bytearray)):
+                        row[col] = value != b"\x00"
+
+                    else:
+                        row[col] = bool(int(value))
 
         return rows
 

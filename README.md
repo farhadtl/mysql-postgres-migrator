@@ -87,7 +87,7 @@ BATCH_SIZE=1000
 ابتدا از  دیتابیس mysql خود یک فول بکاپ بگیرید و نام آن را دقیقا به "mysql_full_backup.sql" تغییر دهید و در پوشه sql جایگزاری نمایید.
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 همین دستور، ابزار را build و اجرا می‌کند. با اتمام کار، container متوقف
 می‌شود و گزارش نهایی هم در کنسول و هم در `logs/migration.log` نمایش
@@ -118,7 +118,7 @@ docker compose up --build
 شود، کافی است دوباره اجرا کنید:
 
 ```bash
-docker compose up
+docker compose up -d
 ```
 
 ابزار به صورت خودکار:
